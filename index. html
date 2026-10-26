@@ -1,0 +1,51 @@
+from pathlib import Path
+p = Path("/mnt/data/reecarna_tienda.html")
+html = p.read_text(encoding="utf-8")
+# Add image file picker next to URL field
+html = html.replace(
+'''      <label for="pImage">URL de imagen (opcional)</label><input id="pImage" type="url" placeholder="https://...">
+      <div class="row"><button type="submit" class="btn">Guardar producto</button><button type="button" class="btn secondary" id="cancelEdit">Limpiar</button></div>''',
+'''      <label for="pImageFile">Foto desde la galería del teléfono</label><input id="pImageFile" type="file" accept="image/*">
+      <div id="imagePreview" style="margin-top:8px"></div>
+      <label for="pImage">O URL de imagen (opcional)</label><input id="pImage" type="url" placeholder="https://...">
+      <div class="row"><button type="submit" class="btn">Guardar producto</button><button type="button" class="btn secondary" id="cancelEdit">Limpiar</button></div>''')
+# Replace Google button with removed, auth flow email only
+html = html.replace('''   <button class="btn secondary" id="googleButton">Continuar con Google (requiere configuración)</button>
+''','')
+html = html.replace('''  <div class="notice">El registro con Google y el acceso seguro necesitan configurar Firebase o un servicio de autenticación. Este ejemplo permite registro local de demostración; no lo uses para contraseñas reales ni como tienda pública definitiva.</div>''',
+'''  <div class="notice">Registro únicamente con correo electrónico y contraseña. Esta versión es una demostración local: para usarla públicamente con cuentas seguras y permisos reales, hay que conectar un servicio de autenticación y una base de datos.</div>''')
+html = html.replace('''$('googleButton').onclick=()=>$('authMessage').textContent='Para habilitar Google hay que crear un proyecto Firebase y configurar el dominio de la web.';
+''','')
+# Add file data state and handlers
+html = html.replace("let isRegister=false;", "let isRegister=false;\\nlet selectedImageData='';")
+html = html.replace(
+'''$('productForm').addEventListener('submit',e=>{e.preventDefault();if(!isAdmin()){alert('Solo el administrador puede publicar productos.');return}const id=$('editId').value||crypto.randomUUID();const p={id,name:$('pName').value.trim(),price:Number($('pPrice').value),desc:$('pDesc').value.trim(),image:$('pImage').value.trim()};if(!p.name||!Number.isFinite(p.price)||p.price<=0)return;const idx=products.findIndex(x=>x.id===id);if(idx>=0)products[idx]=p;else products.unshift(p);saveProducts();e.target.reset();$('editId').value='';$('formTitle').textContent='Publicar producto';renderProducts()});
+$('cancelEdit').onclick=()=>{$('productForm').reset();$('editId').value='';$('formTitle').textContent='Publicar producto'};''',
+'''$('pImageFile').addEventListener('change',e=>{
+ const file=e.target.files && e.target.files[0];
+ if(!file){selectedImageData='';$('imagePreview').innerHTML='';return}
+ if(!file.type.startsWith('image/')){alert('Selecciona un archivo de imagen.');e.target.value='';return}
+ if(file.size>2*1024*1024){alert('La foto debe pesar 2 MB o menos para que no se llene el almacenamiento del navegador.');e.target.value='';return}
+ const reader=new FileReader();
+ reader.onload=()=>{selectedImageData=String(reader.result||'');$('imagePreview').innerHTML=`<img src="${selectedImageData}" alt="Vista previa" style="max-width:150px;max-height:120px;object-fit:contain;border-radius:8px;background:white;padding:4px">`};
+ reader.readAsDataURL(file);
+});
+$('productForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ if(!isAdmin()){alert('Solo el administrador puede publicar productos.');return}
+ const id=$('editId').value||crypto.randomUUID();
+ const old=products.find(x=>x.id===id);
+ const image=selectedImageData||$('pImage').value.trim()||(old?old.image:'');
+ const product={id,name:$('pName').value.trim(),price:Number($('pPrice').value),desc:$('pDesc').value.trim(),image};
+ if(!product.name||!Number.isFinite(product.price)||product.price<=0)return;
+ const idx=products.findIndex(x=>x.id===id);
+ if(idx>=0)products[idx]=product;else products.unshift(product);
+ try{saveProducts()}catch(err){alert('No hay suficiente espacio en el navegador. Prueba una foto más pequeña.');return}
+ e.target.reset();selectedImageData='';$('imagePreview').innerHTML='';$('editId').value='';$('formTitle').textContent='Publicar producto';renderProducts()
+});
+$('cancelEdit').onclick=()=>{$('productForm').reset();selectedImageData='';$('imagePreview').innerHTML='';$('editId').value='';$('formTitle').textContent='Publicar producto'};''')
+html = html.replace(
+'''function editProduct(id){if(!isAdmin())return;const p=products.find(x=>x.id===id);if(!p)return;$('editId').value=p.id;$('pName').value=p.name;$('pPrice').value=p.price;$('pDesc').value=p.desc||'';$('pImage').value=p.image||'';$('formTitle').textContent='Editar producto';$('admin').scrollIntoView({behavior:'smooth'})}''',
+'''function editProduct(id){if(!isAdmin())return;const p=products.find(x=>x.id===id);if(!p)return;$('editId').value=p.id;$('pName').value=p.name;$('pPrice').value=p.price;$('pDesc').value=p.desc||'';$('pImage').value=(p.image||'').startsWith('data:')?'':(p.image||'');selectedImageData=(p.image||'').startsWith('data:')?p.image:'';$('imagePreview').innerHTML=selectedImageData?`<img src="${selectedImageData}" alt="Foto actual" style="max-width:150px;max-height:120px;object-fit:contain;border-radius:8px;background:white;padding:4px">`:'';$('formTitle').textContent='Editar producto';$('admin').scrollIntoView({behavior:'smooth'})}''')
+p.write_text(html, encoding="utf-8")
+print(f"Actualizado: {p} ({p.stat().st_size} bytes)")
